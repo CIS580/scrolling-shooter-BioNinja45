@@ -7,7 +7,19 @@ const Vector = require('./vector');
 const Camera = require('./camera');
 const Player = require('./player');
 const BulletPool = require('./bullet_pool');
-
+const Enemy1 = require('./enemy1.js');
+const Enemy2 = require('./enemy2.js');
+const Enemy3 = require('./enemy3.js');
+const Enemy4 = require('./enemy4.js');
+const Enemy5 = require('./enemy5.js');
+const PowerUp = require('./powerup.js');
+const Smoke = require('./smoke_particles');
+var tilemap = require('./tilemap.js');
+var tilemap2 = require('./tilemap2.js');
+var tilemap3 = require('./tilemap3.js');
+var tilemapData = require('../tilemaps/foreground.json');
+var tilemapData2 = require('../tilemaps/middleground.json');
+var tilemapData3 = require('../tilemaps/background.json');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
@@ -16,12 +28,86 @@ var input = {
   up: false,
   down: false,
   left: false,
-  right: false
+  right: false,
+  fire: false
 }
+var objects = [];
 var camera = new Camera(canvas);
-var bullets = new BulletPool(10);
+var bullets = new BulletPool(100);
+var enemyBullets = new BulletPool(10000);
+enemyBullets.color="red";
 var missiles = [];
 var player = new Player(bullets, missiles);
+var counter = 0;
+var enemies = [];
+var enemyPositions = [];
+var powerUps =[];
+var powerUpsPosition=[];
+var smokePositions = [];
+var gameFinished=false;
+var gameOver=false;
+var bulletsShot = 0;
+var enemiesDestroid = 0;
+var powerUpsRetrieved = 0;
+
+var smoke = new Smoke(10);
+var smoke2 = new Smoke(5);
+
+
+
+function createEnemyPositions(){
+	enemyPositions.push(600);
+	enemyPositions.push(1000);
+	enemyPositions.push(1200);
+	enemyPositions.push(1600);
+	enemyPositions.push(2600);
+	enemyPositions.push(2000);
+	enemyPositions.push(800);
+	enemyPositions.push(1100);
+	enemyPositions.push(1400);
+	enemyPositions.push(1900);
+	enemyPositions.push(2150);
+	enemyPositions.push(2000);
+	enemyPositions.push(900);
+	enemyPositions.push(200);
+	enemyPositions.push(2400);
+	enemyPositions.push(3000);
+	enemyPositions.push(3600);
+	enemyPositions.push(3200);
+	enemyPositions.push(4400);
+	enemyPositions.push(4000);
+	enemyPositions.push(4600);
+	enemyPositions.push(5200);
+	enemyPositions.push(5400);
+	enemyPositions.push(5000);
+	enemyPositions.push(5600);
+	enemyPositions.push(6200);
+	powerUpsPosition.push(1000);
+	powerUpsPosition.push(2000);
+	powerUpsPosition.push(3000);
+	powerUpsPosition.push(4000);
+	powerUpsPosition.push(5000);
+	powerUpsPosition.push(6000);
+}
+createEnemyPositions();
+// Set up the screen canvas
+
+
+  // Load the tilemap
+  tilemap.load(tilemapData, {
+   
+  });
+  // Load the tilemap
+  tilemap2.load(tilemapData2, {
+    
+  });
+  tilemap3.load(tilemapData3, {
+    
+  });
+  
+
+
+
 
 /**
  * @function onkeydown
@@ -49,6 +135,10 @@ window.onkeydown = function(event) {
       input.right = true;
       event.preventDefault();
       break;
+	case ' ':
+	  input.fire=true;
+	  event.preventDefault();
+	  break;
   }
 }
 
@@ -78,6 +168,10 @@ window.onkeyup = function(event) {
       input.right = false;
       event.preventDefault();
       break;
+	case ' ':
+	  input.fire=false;
+	  event.preventDefault();
+	  break;
   }
 }
 
@@ -101,7 +195,110 @@ masterLoop(performance.now());
  * the number of milliseconds passed since the last frame.
  */
 function update(elapsedTime) {
-
+	if(gameOver || gameFinished)return;
+	if(player.lives<1)gameOver=true;
+	else if(player.position.x>7000)gameFinished=true;
+	
+	counter++;
+	var bulletPool = bullets.pool;
+	objects.forEach(function(object, x){
+		for(i=0;i<bullets.end;i++){
+			if(Math.abs(bulletPool[4*i] - object.position.x)<object.radius){
+				if(Math.abs(bulletPool[4*i+1] - object.position.y)<object.radius){
+					
+					smoke2 = new Smoke(5);
+					smoke2.emit({x:object.position.x,y:object.position.y});
+					smokePositions.push(smoke2);
+					enemiesDestroid++;
+					objects.splice(x,1);
+					
+					bullets.pool[4*i]=0;
+					bullets.pool[4*i+1]=0;
+					bullets.pool[4*i+2]=0;
+					bullets.pool[4*i+3]=0;
+					bullets.end--;
+				}
+			}
+		}
+		if(Math.abs(player.position.x - object.position.x)<object.radius){
+			if((Math.abs(player.position.y - object.position.y)<object.radius)){
+				playerHit();
+			}
+		}
+	});
+	var enemyBulletPool = enemyBullets.pool;
+	for(i=0;i<enemyBullets.end;i++){
+			if(Math.abs(enemyBulletPool[4*i] - player.position.x-20)<player.radius2){
+				if(Math.abs(enemyBulletPool[4*i+1] - player.position.y)<player.radius2){
+					playerHit();
+					enemyBullets.pool[4*i]=0;
+					enemyBullets.pool[4*i+1]=0;
+					enemyBullets.pool[4*i+2]=0;
+					enemyBullets.pool[4*i+3]=0;
+					enemyBullets.end--;
+				}
+			}
+		}
+	
+	powerUps.forEach(function(powerUp,x){
+		if(Math.abs(player.position.x-powerUp.position.x) < powerUp.radius){
+			if(Math.abs(player.position.y-powerUp.position.y) < powerUp.radius){
+				player.powerUps++;
+				powerUpsRetrieved++;
+				powerUps.splice(x,1);
+			}
+		}
+	});
+	if(input.fire && counter>20){
+		bullets.add( {x:player.position.x,y:player.position.y},{x:5,y:0})
+		counter=0;
+		bulletsShot++;
+		if(player.powerUps>0){
+			bullets.add( {x:player.position.x,y:player.position.y},{x:5,y:1})
+			bulletsShot++;
+			if(player.powerUps>1){
+				bulletsShot++;
+				bullets.add( {x:player.position.x,y:player.position.y},{x:5,y:-1})
+			}
+		}
+		objects.forEach(function(object,i){
+			if(object.id=="enemy3"){
+				enemyBullets.add({x:object.position.x,y:object.position.y},{x:-2,y:0})
+			}
+		});  
+		
+	}
+	enemyPositions.forEach( function(position, i){
+		
+		if(player.position.x>position){
+			
+			var newEnemy=new Enemy1({x:position+1000,y:Math.random()*500});
+			var newEnemy2=new Enemy2({x:position+1000,y:Math.random()*500});
+			var newEnemy3=new Enemy3({x:position+1000,y:Math.random()*500});
+			var newEnemy4=new Enemy4({x:position+1000,y:Math.random()*500});
+			var newEnemy5=new Enemy5({x:position+1000,y:Math.random()*500});
+			enemies.push(newEnemy5);
+			enemies.push(newEnemy);
+			enemies.push(newEnemy2);
+			enemies.push(newEnemy3);
+			enemies.push(newEnemy4);
+			
+			objects.push(newEnemy5);
+			objects.push(newEnemy);
+			objects.push(newEnemy2);
+			objects.push(newEnemy3);
+			objects.push(newEnemy4);
+			enemyPositions.splice(i,1);
+		}
+		
+	});
+	powerUpsPosition.forEach(function(position, i){
+		if(player.position.x>position){
+			powerUps.push(new PowerUp({x:position+500,y:Math.random()*500}));
+			powerUpsPosition.splice(i,1);
+		}
+	});
+	
   // update the player
   player.update(elapsedTime, input);
 
@@ -109,7 +306,11 @@ function update(elapsedTime) {
   camera.update(player.position);
 
   // Update bullets
-  bullets.update(elapsedTime, function(bullet){
+  bullets.update(elapsedTime, function(bullet,i){
+    if(!camera.onScreen(bullet)) return true;
+    return false;
+  });
+  enemyBullets.update(elapsedTime, function(bullet,i){
     if(!camera.onScreen(bullet)) return true;
     return false;
   });
@@ -125,8 +326,30 @@ function update(elapsedTime) {
   markedForRemoval.forEach(function(index){
     missiles.splice(index, 1);
   });
+  objects.forEach(function(object){
+		object.update(elapsedTime);
+	});
+	smoke.update(elapsedTime);
+	smokePositions.forEach(function(smokePos){
+		smokePos.update(elapsedTime);
+	});
+	powerUps.forEach(function(powerup){
+		powerup.update(elapsedTime);
+	});
 }
 
+function playerHit(){
+	var newPlayer = new Player(bullets, missiles);
+	newPlayer.position={x:player.position.x-400,y:player.position.y};
+	newPlayer.lives=player.lives-1;
+	
+	smoke.emit({x:player.position.x,y:player.position.y});
+	bullets
+	player = newPlayer;
+	bullets = new BulletPool(100);
+	enemyBullets = new BulletPool(10000);
+	enemyBullets.color="red";
+}
 /**
   * @function render
   * Renders the current game state into a back buffer.
@@ -135,8 +358,16 @@ function update(elapsedTime) {
   * @param {CanvasRenderingContext2D} ctx the context to render to
   */
 function render(elapsedTime, ctx) {
+	if(gameFinished){
+		renderSummaryScreen(elapsedTime,ctx);
+		return;
+	}
+	if(gameOver){
+		renderEndScreen(elapsedTime,ctx)
+		return;
+	}
   ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, 1024, 786);
+  ctx.fillRect(0, 0, 2048, 786);
 
   // TODO: Render background
 
@@ -146,6 +377,7 @@ function render(elapsedTime, ctx) {
   // can be rendered in WORLD cooridnates
   // but appear in SCREEN coordinates
   ctx.save();
+  renderBackgrounds(elapsedTime, ctx);
   ctx.translate(-camera.x, -camera.y);
   renderWorld(elapsedTime, ctx);
   ctx.restore();
@@ -153,6 +385,27 @@ function render(elapsedTime, ctx) {
   // Render the GUI without transforming the
   // coordinate system
   renderGUI(elapsedTime, ctx);
+}
+
+function renderBackgrounds(elapsedTime, ctx) {
+ 
+ctx.save();
+ 
+
+  // The midground scrolls at 60% of the foreground speed
+  ctx.save();
+  ctx.translate(-camera.x * 0.6, 0);
+  tilemap2.render(ctx);
+  ctx.restore();
+ // The background scrolls at 2% of the foreground speed
+  ctx.translate(-camera.x * 0.2, 0);
+  tilemap3.render(ctx);
+  ctx.restore();
+  // The foreground scrolls in sync with the camera
+  ctx.save();
+  ctx.translate(-camera.x, 0);
+  tilemap.render(ctx);
+  ctx.restore();
 }
 
 /**
@@ -165,14 +418,25 @@ function render(elapsedTime, ctx) {
 function renderWorld(elapsedTime, ctx) {
     // Render the bullets
     bullets.render(elapsedTime, ctx);
+	enemyBullets.render(elapsedTime, ctx);
 
     // Render the missiles
     missiles.forEach(function(missile) {
       missile.render(elapsedTime, ctx);
     });
 
+	objects.forEach(function(object){
+		object.render(elapsedTime,ctx);
+	});
     // Render the player
     player.render(elapsedTime, ctx);
+	smoke.render(elapsedTime,ctx);
+	smokePositions.forEach(function(smokePos){
+		smokePos.render(elapsedTime,ctx);
+	});
+	powerUps.forEach(function(powerup){
+		powerup.render(elapsedTime,ctx);
+	});
 }
 
 /**
@@ -182,10 +446,30 @@ function renderWorld(elapsedTime, ctx) {
   * @param {CanvasRenderingContext2D} ctx
   */
 function renderGUI(elapsedTime, ctx) {
-  // TODO: Render the GUI
+  ctx.fillStyle = "green";
+	ctx.font = "bold 25px Arial";
+	ctx.fillText("Lives: " + player.lives, 10,30);
 }
 
-},{"./bullet_pool":2,"./camera":3,"./game":4,"./player":6,"./vector":8}],2:[function(require,module,exports){
+function renderSummaryScreen(elapsedTime,ctx){
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, 2048, 786);
+	ctx.fillStyle = "white";
+	ctx.font = "bold 50px Arial";
+	ctx.fillText("Summary", 350,100);
+	ctx.font = "bold 25px Arial";
+	ctx.fillText("Shots Fired: " + bulletsShot, 100,300);
+	ctx.fillText("Enemies Destroid: " + enemiesDestroid, 100,400);
+	ctx.fillText("PowerUps Retrieved: " + powerUpsRetrieved, 100,500);
+}
+function renderEndScreen(elapsedTime,ctx){
+		ctx.font = "75px Arial";
+		ctx.fillText("GAME OVER", 200,200);
+		ctx.font = "50px Arial";
+		ctx.fillText("REFRESH BROWSER TO RESTART",150,300);
+		return;
+}
+},{"../tilemaps/background.json":17,"../tilemaps/foreground.json":18,"../tilemaps/middleground.json":19,"./bullet_pool":2,"./camera":3,"./enemy1.js":4,"./enemy2.js":5,"./enemy3.js":6,"./enemy4.js":7,"./enemy5.js":8,"./game":9,"./player":10,"./powerup.js":11,"./smoke_particles":12,"./tilemap.js":13,"./tilemap2.js":14,"./tilemap3.js":15,"./vector":16}],2:[function(require,module,exports){
 "use strict";
 
 /**
@@ -208,6 +492,8 @@ function BulletPool(maxSize) {
   this.pool = new Float32Array(4 * maxSize);
   this.end = 0;
   this.max = maxSize;
+  this.radius = 4;
+  this.color="black";
 }
 
 /**
@@ -221,10 +507,11 @@ BulletPool.prototype.add = function(position, velocity) {
   if(this.end < this.max) {
     this.pool[4*this.end] = position.x;
     this.pool[4*this.end+1] = position.y;
-    this.pool[4*this.end+2] = velocity.x;
-    this.pool[4*this.end+3] = velocity.y;
+    this.pool[4*this.end+2] = velocity.x*2;
+    this.pool[4*this.end+3] = velocity.y*2;
     this.end++;
   }
+  this.radius=4;
 }
 
 /**
@@ -275,10 +562,10 @@ BulletPool.prototype.render = function(elapsedTime, ctx) {
   // Render the bullets as a single path
   ctx.save();
   ctx.beginPath();
-  ctx.fillStyle = "black";
+  ctx.fillStyle = this.color;
   for(var i = 0; i < this.end; i++) {
     ctx.moveTo(this.pool[4*i], this.pool[4*i+1]);
-    ctx.arc(this.pool[4*i], this.pool[4*i+1], 2, 0, 2*Math.PI);
+    ctx.arc(this.pool[4*i], this.pool[4*i+1], this.radius, 0, 2*Math.PI);
   }
   ctx.fill();
   ctx.restore();
@@ -314,7 +601,7 @@ function Camera(screen) {
  * @param {Vector} target what the camera is looking at
  */
 Camera.prototype.update = function(target) {
-  // TODO: Align camera with player
+  this.x = target.x - 200;
 }
 
 /**
@@ -352,7 +639,502 @@ Camera.prototype.toWorldCoordinates = function(screenCoordinates) {
   return Vector.add(screenCoordinates, this);
 }
 
-},{"./vector":8}],4:[function(require,module,exports){
+},{"./vector":16}],4:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+/* Constants */
+const Enemy1_SPEED = -5;
+
+
+/**
+ * @module Enemy1
+ * A class representing a Enemy1's helicopter
+ */
+module.exports = exports = Enemy1;
+
+/**
+ * @constructor Enemy1
+ * Creates a Enemy1
+ * @param {BulletPool} bullets the bullet pool
+ */
+function Enemy1(position) {
+  this.angle = 0;
+  this.position = position
+  this.velocity = {x: 1, y: 0};
+  this.img = new Image()
+  this.img.src = 'assets/enemy_ships.png';
+  this.id="enemy";
+  this.radius=20;
+}
+
+/**
+ * @function update
+ * Updates the Enemy1 based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+Enemy1.prototype.update = function(elapsedTime) {
+
+  // set the velocity
+  
+
+  // determine Enemy1 angle
+  this.angle = 0;
+
+  // move the Enemy1
+  this.position.x += this.velocity.x;
+  this.position.y += this.velocity.y;
+
+  // don't let the Enemy1 move off-screen
+  
+}
+
+/**
+ * @function render
+ * Renders the Enemy1 helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+Enemy1.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+  ctx.rotate(3*Math.PI/2);
+  ctx.drawImage(this.img, 0, 0, 23, 28, -12.5, -12, 23, 27);
+  ctx.restore();
+}
+
+/**
+ * @function fireBullet
+ * Fires a bullet
+ * @param {Vector} direction
+ */
+Enemy1.prototype.fireBullet = function(direction) {
+  var position = Vector.add(this.position, {x:30, y:30});
+  var velocity = Vector.scale(Vector.normalize(direction), BULLET_SPEED);
+  this.bullets.add(position, velocity);
+}
+
+/**
+ * @function fireMissile
+ * Fires a missile, if the Enemy1 still has missiles
+ * to fire.
+ */
+Enemy1.prototype.fireMissile = function() {
+  if(this.missileCount > 0){
+    var position = Vector.add(this.position, {x:0, y:30})
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
+    this.missileCount--;
+  }
+}
+
+},{"./vector":16}],5:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+/* Constants */
+const Enemy1_SPEED = -5;
+
+
+/**
+ * @module Enemy1
+ * A class representing a Enemy1's helicopter
+ */
+module.exports = exports = Enemy1;
+
+/**
+ * @constructor Enemy1
+ * Creates a Enemy1
+ * @param {BulletPool} bullets the bullet pool
+ */
+function Enemy1(position) {
+
+  this.angle = 0;
+  this.position = position
+  this.velocity = {x: 0, y: 4};
+  this.img = new Image()
+  this.img.src = 'assets/enemy_ships.png';
+  this.id="enemy";
+  this.radius=20;
+}
+
+/**
+ * @function update
+ * Updates the Enemy1 based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+Enemy1.prototype.update = function(elapsedTime) {
+
+  // set the velocity
+  
+
+  // determine Enemy1 angle
+  this.angle = 0;
+
+  // move the Enemy1
+  this.position.x += this.velocity.x;
+  this.position.y += this.velocity.y;
+  if(this.position.y<50)this.velocity.y=4;
+  if(this.position.y>700)this.velocity.y=-4;
+
+  // don't let the Enemy1 move off-screen
+  
+}
+
+/**
+ * @function render
+ * Renders the Enemy1 helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+Enemy1.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+  ctx.rotate(3*Math.PI/2);
+  ctx.drawImage(this.img, 0, 28, 23, 28, -12.5, -12, 23, 27);
+  ctx.restore();
+}
+
+/**
+ * @function fireBullet
+ * Fires a bullet
+ * @param {Vector} direction
+ */
+Enemy1.prototype.fireBullet = function(direction) {
+  var position = Vector.add(this.position, {x:30, y:30});
+  var velocity = Vector.scale(Vector.normalize(direction), BULLET_SPEED);
+  this.bullets.add(position, velocity);
+}
+
+/**
+ * @function fireMissile
+ * Fires a missile, if the Enemy1 still has missiles
+ * to fire.
+ */
+Enemy1.prototype.fireMissile = function() {
+  if(this.missileCount > 0){
+    var position = Vector.add(this.position, {x:0, y:30})
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
+    this.missileCount--;
+  }
+}
+
+},{"./vector":16}],6:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+/* Constants */
+const Enemy3_SPEED = -5;
+
+
+/**
+ * @module Enemy3
+ * A class representing a Enemy3's helicopter
+ */
+module.exports = exports = Enemy3;
+
+/**
+ * @constructor Enemy3
+ * Creates a Enemy3
+ * @param {BulletPool} bullets the bullet pool
+ */
+function Enemy3(position) {
+
+  this.angle = 0;
+  this.position = position
+  this.velocity = {x: 1, y: 4};
+  this.img = new Image()
+  this.img.src = 'assets/enemy_ships.png';
+  this.id="enemy3";
+  this.radius=20;
+  this.change=0.1;
+}
+
+/**
+ * @function update
+ * Updates the Enemy3 based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+Enemy3.prototype.update = function(elapsedTime) {
+
+  // set the velocity
+  
+
+  // determine Enemy3 angle
+  this.angle = 0;
+  this.velocity.y+=this.change;
+  // move the Enemy3
+  this.position.x += this.velocity.x;
+  this.position.y += this.velocity.y;
+  if(this.position.y<50)this.position.y=50;
+  if(this.position.y>700)this.position.y=700;
+  
+  if(this.velocity.y>4)this.change=-0.1;
+  if(this.velocity.y<-4)this.change=0.1;
+
+  // don't let the Enemy3 move off-screen
+  
+}
+
+/**
+ * @function render
+ * Renders the Enemy3 helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+Enemy3.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+  ctx.rotate(3*Math.PI/2);
+  ctx.drawImage(this.img, 0, 58, 23, 28, -12.5, -12, 23, 27);
+  ctx.restore();
+}
+
+/**
+ * @function fireBullet
+ * Fires a bullet
+ * @param {Vector} direction
+ */
+Enemy3.prototype.fireBullet = function(direction) {
+  var position = Vector.add(this.position, {x:30, y:30});
+  var velocity = Vector.scale(Vector.normalize(direction), BULLET_SPEED);
+  this.bullets.add(position, velocity);
+}
+
+/**
+ * @function fireMissile
+ * Fires a missile, if the Enemy3 still has missiles
+ * to fire.
+ */
+Enemy3.prototype.fireMissile = function() {
+  if(this.missileCount > 0){
+    var position = Vector.add(this.position, {x:0, y:30})
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
+    this.missileCount--;
+  }
+}
+
+},{"./vector":16}],7:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+/* Constants */
+const Enemy4_SPEED = -5;
+
+
+/**
+ * @module Enemy4
+ * A class representing a Enemy4's helicopter
+ */
+module.exports = exports = Enemy4;
+
+/**
+ * @constructor Enemy4
+ * Creates a Enemy4
+ * @param {BulletPool} bullets the bullet pool
+ */
+function Enemy4(position) {
+
+  this.angle = 0;
+  this.position = position
+  this.velocity = {x: 1, y: 0};
+  this.img = new Image()
+  this.img.src = 'assets/enemy_ships.png';
+  this.id="enemy";
+  this.radius=20;
+  this.change = 0.1;
+}
+
+/**
+ * @function update
+ * Updates the Enemy4 based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+Enemy4.prototype.update = function(elapsedTime) {
+
+  // set the velocity
+  
+
+  // determine Enemy4 angle
+  this.angle = 0;
+  this.velocity.x+=this.change;
+  this.velocity.y+=this.change;
+  // move the Enemy4
+  this.position.x += this.velocity.x;
+  this.position.y += this.velocity.y;
+  if(this.position.y<50)this.velocity.y=4;
+  if(this.position.y>700)this.velocity.y=-4;
+  if(this.velocity.x>3)this.change=-0.1;
+  if(this.velocity.x<-3)this.change=0.1;
+
+  // don't let the Enemy4 move off-screen
+  
+}
+
+/**
+ * @function render
+ * Renders the Enemy4 helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+Enemy4.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+  ctx.rotate(3*Math.PI/2);
+  ctx.drawImage(this.img, 0, 86, 23, 28, -12.5, -12, 23, 27);
+  ctx.restore();
+}
+
+/**
+ * @function fireBullet
+ * Fires a bullet
+ * @param {Vector} direction
+ */
+Enemy4.prototype.fireBullet = function(direction) {
+  var position = Vector.add(this.position, {x:30, y:30});
+  var velocity = Vector.scale(Vector.normalize(direction), BULLET_SPEED);
+  this.bullets.add(position, velocity);
+}
+
+/**
+ * @function fireMissile
+ * Fires a missile, if the Enemy4 still has missiles
+ * to fire.
+ */
+Enemy4.prototype.fireMissile = function() {
+  if(this.missileCount > 0){
+    var position = Vector.add(this.position, {x:0, y:30})
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
+    this.missileCount--;
+  }
+}
+
+},{"./vector":16}],8:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+/* Constants */
+const Enemy5_SPEED = -5;
+
+
+/**
+ * @module Enemy5
+ * A class representing a Enemy5's helicopter
+ */
+module.exports = exports = Enemy5;
+
+/**
+ * @constructor Enemy5
+ * Creates a Enemy5
+ * @param {BulletPool} bullets the bullet pool
+ */
+function Enemy5(position) {
+
+  this.angle = 0;
+  this.position = position
+  this.velocity = {x: 0, y: 0};
+  this.img = new Image()
+  this.img.src = 'assets/bombship.png';
+  this.id="enemy";
+  this.radius=40;
+}
+
+/**
+ * @function update
+ * Updates the Enemy5 based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+Enemy5.prototype.update = function(elapsedTime) {
+
+  // set the velocity
+  
+
+  // determine Enemy5 angle
+  this.angle = 0;
+
+  // move the Enemy5
+  this.position.x += this.velocity.x;
+  this.position.y += this.velocity.y;
+  if(this.position.y<50)this.velocity.y=4;
+  if(this.position.y>700)this.velocity.y=-4;
+
+  // don't let the Enemy5 move off-screen
+  
+}
+
+/**
+ * @function render
+ * Renders the Enemy5 helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+Enemy5.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+  ctx.rotate(3*Math.PI/2);
+  ctx.drawImage(this.img, 0, 0, 25, 25, -12.5, -12, 50, 50);
+  ctx.restore();
+}
+
+/**
+ * @function fireBullet
+ * Fires a bullet
+ * @param {Vector} directiond
+ */
+Enemy5.prototype.fireBullet = function(direction) {
+  var position = Vector.add(this.position, {x:30, y:30});
+  var velocity = Vector.scale(Vector.normalize(direction), BULLET_SPEED);
+  this.bullets.add(position, velocity);
+}
+
+/**
+ * @function fireMissile
+ * Fires a missile, if the Enemy5 still has missiles
+ * to fire.
+ */
+Enemy5.prototype.fireMissile = function() {
+  if(this.missileCount > 0){
+    var position = Vector.add(this.position, {x:0, y:30})
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
+    this.missileCount--;
+  }
+}
+
+},{"./vector":16}],9:[function(require,module,exports){
 "use strict";
 
 /**
@@ -410,89 +1192,12 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],5:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 /* Classes and Libraries */
 const Vector = require('./vector');
-const SmokeParticles = require('./smoke_particles');
-
-/* Constants */
-const MISSILE_SPEED = 8;
-
-/**
- * @module Missile
- * A class representing a player's missile
- */
-module.exports = exports = Missile;
-
-/**
- * @constructor Missile
- * Creates a missile
- * @param {Vector} position the position of the missile
- * @param {Object} target the target of the missile
- */
-function Missile(position, target) {
-  this.position = {x: position.x, y:position.y}
-  this.target = target;
-  this.angle = 0;
-  this.img = new Image()
-  this.img.src = 'assets/helicopter.png';
-  this.smokeParticles = new SmokeParticles(400);
-}
-
-/**
- * @function update
- * Updates the missile, steering it towards a locked
- * target or straight ahead
- * @param {DOMHighResTimeStamp} elapedTime
- */
-Missile.prototype.update = function(elapsedTime) {
-
-  // set the velocity
-  var velocity = {x: MISSILE_SPEED, y: 0}
-  if(this.target) {
-    var direction = Vector.subtract(this.position, this.target);
-    velocity = Vector.scale(Vector.normalize(direction), MISSILE_SPEED);
-  }
-
-  // determine missile angle
-  this.angle = Math.atan2(velocity.y, velocity.x);
-
-  // move the missile
-  this.position.x += velocity.x;
-  this.position.y += velocity.y;
-
-  // emit smoke
-  this.smokeParticles.emit(this.position);
-
-  // update smoke
-  this.smokeParticles.update(elapsedTime);
-}
-
-/**
- * @function render
- * Renders the missile in world coordinates
- * @param {DOMHighResTimeStamp} elapsedTime
- * @param {CanvasRenderingContext2D} ctx
- */
-Missile.prototype.render = function(elapsedTime, ctx) {
-  // Draw Missile
-  ctx.save();
-  ctx.translate(this.position.x, this.position.y);
-  ctx.rotate(this.angle);
-  ctx.drawImage(this.img, 76, 56, 16, 8, 0, -4, 16, 8);
-  ctx.restore();
-  // Draw Smoke
-  this.smokeParticles.render(elapsedTime, ctx);
-}
-
-},{"./smoke_particles":7,"./vector":8}],6:[function(require,module,exports){
-"use strict";
-
-/* Classes and Libraries */
-const Vector = require('./vector');
-const Missile = require('./missile');
+//const Missile = require('./missile');
 
 /* Constants */
 const PLAYER_SPEED = 5;
@@ -514,10 +1219,15 @@ function Player(bullets, missiles) {
   this.missileCount = 4;
   this.bullets = bullets;
   this.angle = 0;
-  this.position = {x: 200, y: 200};
+  this.position = {x: 500, y: 400};
   this.velocity = {x: 0, y: 0};
   this.img = new Image()
-  this.img.src = 'assets/tyrian.shp.007D3C.png';
+  this.img.src = 'assets/playership.png';
+  this.powerUps=0;
+  this.id="player";
+  this.radius=2;
+  this.radius2=10;
+  this.lives=3;
 }
 
 /**
@@ -539,17 +1249,18 @@ Player.prototype.update = function(elapsedTime, input) {
 
   // determine player angle
   this.angle = 0;
-  if(this.velocity.x < 0) this.angle = -1;
-  if(this.velocity.x > 0) this.angle = 1;
+  if(this.velocity.y < 0) this.angle = -1;
+  if(this.velocity.y > 0) this.angle = 1;
 
   // move the player
   this.position.x += this.velocity.x;
   this.position.y += this.velocity.y;
 
   // don't let the player move off-screen
-  if(this.position.x < 0) this.position.x = 0;
-  if(this.position.x > 1024) this.position.x = 1024;
-  if(this.position.y > 786) this.position.y = 786;
+  if(this.position.x < 500) this.position.x = 500;
+  else if(this.position.x > 7048) this.position.x = 7048;
+  if(this.position.y > 750) this.position.y = 750;
+  else if(this.position.y <20) this.position.y = 20;
 }
 
 /**
@@ -562,7 +1273,9 @@ Player.prototype.render = function(elapasedTime, ctx) {
   var offset = this.angle * 23;
   ctx.save();
   ctx.translate(this.position.x, this.position.y);
-  ctx.drawImage(this.img, 48+offset, 57, 23, 27, -12.5, -12, 23, 27);
+  ctx.rotate(Math.PI/2);
+  if(this.powerUps>2)this.powerUps=2;
+  ctx.drawImage(this.img, this.powerUps*23, 0, 22, 27, -12.5, -12, 23, 27);
   ctx.restore();
 }
 
@@ -585,13 +1298,73 @@ Player.prototype.fireBullet = function(direction) {
 Player.prototype.fireMissile = function() {
   if(this.missileCount > 0){
     var position = Vector.add(this.position, {x:0, y:30})
-    var missile = new Missile(position);
-    this.missiles.push(missile);
+    //var missile = new Missile(position);
+    //this.missiles.push(missile);
     this.missileCount--;
   }
 }
 
-},{"./missile":5,"./vector":8}],7:[function(require,module,exports){
+},{"./vector":16}],11:[function(require,module,exports){
+"use strict";
+
+/* Classes and Libraries */
+const Vector = require('./vector');
+//const Missile = require('./missile');
+
+
+
+
+/**
+ * @module PowerUp
+ * A class representing a PowerUp's helicopter
+ */
+module.exports = exports = PowerUp;
+
+/**
+ * @constructor PowerUp
+ * Creates a PowerUp
+ * @param {BulletPool} bullets the bullet pool
+ */
+function PowerUp(position) {
+  this.missileCount = 4;
+  this.angle = 0;
+  this.position = position
+  this.img = new Image()
+  this.img.src = 'assets/powerups.png';
+  this.id="powerup";
+  this.radius=20;
+}
+
+/**
+ * @function update
+ * Updates the PowerUp based on the supplied input
+ * @param {DOMHighResTimeStamp} elapedTime
+ * @param {Input} input object defining input, must have
+ * boolean properties: up, left, right, down
+ */
+PowerUp.prototype.update = function(elapsedTime) {
+  // determine PowerUp angle
+  this.angle = 0;
+
+}
+
+/**
+ * @function render
+ * Renders the PowerUp helicopter in world coordinates
+ * @param {DOMHighResTimeStamp} elapsedTime
+ * @param {CanvasRenderingContext2D} ctx
+ */
+PowerUp.prototype.render = function(elapasedTime, ctx) {
+  var offset = this.angle * 23;
+  ctx.save();
+  ctx.translate(this.position.x, this.position.y);
+
+  ctx.drawImage(this.img, 0,0, 18, 27, -12.5, -12, 23, 27);
+  ctx.restore();
+}
+
+
+},{"./vector":16}],12:[function(require,module,exports){
 "use strict";
 
 /**
@@ -668,7 +1441,8 @@ SmokeParticles.prototype.render = function(elapsedTime, ctx) {
   function renderParticle(i){
     var alpha = 1 - (this.pool[3*i+2] / 1000);
     var radius = 0.1 * this.pool[3*i+2];
-    if(radius > 5) radius = 5;
+    if(radius > 30) radius = 30;
+	else if(radius<0)radius=0;
     ctx.beginPath();
     ctx.arc(
       this.pool[3*i],   // X position
@@ -697,7 +1471,281 @@ SmokeParticles.prototype.render = function(elapsedTime, ctx) {
   }
 }
 
-},{}],8:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
+// Tilemap engine defined using the Module pattern
+module.exports = (function (){
+  var tiles = [],
+      tilesets = [],
+      layers = [],
+      tileWidth = 0,
+      tileHeight = 0,
+      mapWidth = 0,
+      mapHeight = 0;
+      
+  var load = function(mapData, options) {
+      
+    var loading = 0;
+    
+    // Release old tiles & tilesets
+    tiles = [];
+    tilesets = [];
+    
+    // Resize the map
+    tileWidth = mapData.tilewidth;
+    tileHeight = mapData.tileheight;
+    mapWidth = mapData.width;
+    mapHeight = mapData.height;
+    
+    // Load the tileset(s)
+    mapData.tilesets.forEach( function(tilesetmapData, index) {
+      // Load the tileset image
+      var tileset = new Image();
+      loading++;
+      tileset.onload = function() {
+        loading--;
+        if(loading == 0 && options.onload) options.onload();
+      }
+      tileset.src = tilesetmapData.image;
+      tilesets.push(tileset);
+      
+      // Create the tileset's tiles
+      var colCount = Math.floor(tilesetmapData.imagewidth / tileWidth),
+          rowCount = Math.floor(tilesetmapData.imageheight / tileHeight),
+          tileCount = colCount * rowCount;
+      
+      for(i = 0; i < tileCount; i++) {
+        var tile = {
+          // Reference to the image, shared amongst all tiles in the tileset
+          image: tileset,
+          // Source x position.  i % colCount == col number (as we remove full rows)
+          sx: (i % colCount) * tileWidth,
+          // Source y position. i / colWidth (integer division) == row number 
+          sy: Math.floor(i / rowCount) * tileHeight,
+          // Indicates a solid tile (i.e. solid property is true).  As properties
+          // can be left blank, we need to make sure the property exists. 
+          // We'll assume any tiles missing the solid property are *not* solid
+          solid: (tilesetmapData.tileproperties[i] && tilesetmapData.tileproperties[i].solid == "true") ? true : false
+        }
+        tiles.push(tile);
+      }
+    });
+    
+    // Parse the layers in the map
+    mapData.layers.forEach( function(layerData) {
+      
+      // Tile layers need to be stored in the engine for later
+      // rendering
+      if(layerData.type == "tilelayer") {
+        // Create a layer object to represent this tile layer
+        var layer = {
+          name: layerData.name,
+          width: layerData.width,
+          height: layerData.height,
+          visible: layerData.visible
+        }
+      
+        // Set up the layer's data array.  We'll try to optimize
+        // by keeping the index data type as small as possible
+        if(tiles.length < Math.pow(2,8))
+          layer.data = new Uint8Array(layerData.data);
+        else if (tiles.length < Math.Pow(2, 16))
+          layer.data = new Uint16Array(layerData.data);
+        else 
+          layer.data = new Uint32Array(layerData.data);
+      
+        // save the tile layer
+        layers.push(layer);
+      }
+    });
+  }
+
+  var render = function(screenCtx) {
+    // Render tilemap layers - note this assumes
+    // layers are sorted back-to-front so foreground
+    // layers obscure background ones.
+    // see http://en.wikipedia.org/wiki/Painter%27s_algorithm
+    layers.forEach(function(layer){
+      
+      // Only draw layers that are currently visible
+      if(layer.visible) { 
+        for(y = 0; y < layer.height; y++) {
+          for(x = 0; x < layer.width; x++) {
+            var tileId = layer.data[x + layer.width * y];
+            
+            // tiles with an id of 0 don't exist
+            if(tileId != 0) {
+              var tile = tiles[tileId - 1];
+              if(tile.image) { // Make sure the image has loaded
+                screenCtx.drawImage(
+                  tile.image,     // The image to draw 
+                  tile.sx, tile.sy, tileWidth, tileHeight, // The portion of image to draw
+                  x*tileWidth, y*tileHeight, tileWidth*2, tileHeight*2 // Where to draw the image on-screen
+                );
+              }
+            }
+            
+          }
+        }
+      }
+      
+    });
+  }
+  
+  var tileAt = function(x, y, layer) {
+    // sanity check
+    if(layer < 0 || x < 0 || y < 0 || layer >= layers.length || x > mapWidth || y > mapHeight) 
+      return undefined;  
+    return tiles[layers[layer].data[x + y*mapWidth] - 1];
+  }
+  
+  // Expose the module's public API
+  return {
+    load: load,
+    render: render,
+    tileAt: tileAt
+  }
+  
+  
+})();
+},{}],14:[function(require,module,exports){
+// Tilemap engine defined using the Module pattern
+module.exports = (function (){
+  var tiles = [],
+      tilesets = [],
+      layers = [],
+      tileWidth = 0,
+      tileHeight = 0,
+      mapWidth = 0,
+      mapHeight = 0;
+      
+  var load = function(mapData, options) {
+      
+    var loading = 0;
+    
+    // Release old tiles & tilesets
+    tiles = [];
+    tilesets = [];
+    
+    // Resize the map
+    tileWidth = mapData.tilewidth;
+    tileHeight = mapData.tileheight;
+    mapWidth = mapData.width;
+    mapHeight = mapData.height;
+    
+    // Load the tileset(s)
+    mapData.tilesets.forEach( function(tilesetmapData, index) {
+      // Load the tileset image
+      var tileset = new Image();
+      loading++;
+      tileset.onload = function() {
+        loading--;
+        if(loading == 0 && options.onload) options.onload();
+      }
+      tileset.src = tilesetmapData.image;
+      tilesets.push(tileset);
+      
+      // Create the tileset's tiles
+      var colCount = Math.floor(tilesetmapData.imagewidth / tileWidth),
+          rowCount = Math.floor(tilesetmapData.imageheight / tileHeight),
+          tileCount = colCount * rowCount;
+      
+      for(i = 0; i < tileCount; i++) {
+        var tile = {
+          // Reference to the image, shared amongst all tiles in the tileset
+          image: tileset,
+          // Source x position.  i % colCount == col number (as we remove full rows)
+          sx: (i % colCount) * tileWidth,
+          // Source y position. i / colWidth (integer division) == row number 
+          sy: Math.floor(i / rowCount) * tileHeight,
+          // Indicates a solid tile (i.e. solid property is true).  As properties
+          // can be left blank, we need to make sure the property exists. 
+          // We'll assume any tiles missing the solid property are *not* solid
+          solid: (tilesetmapData.tileproperties[i] && tilesetmapData.tileproperties[i].solid == "true") ? true : false
+        }
+        tiles.push(tile);
+      }
+    });
+    
+    // Parse the layers in the map
+    mapData.layers.forEach( function(layerData) {
+      
+      // Tile layers need to be stored in the engine for later
+      // rendering
+      if(layerData.type == "tilelayer") {
+        // Create a layer object to represent this tile layer
+        var layer = {
+          name: layerData.name,
+          width: layerData.width,
+          height: layerData.height,
+          visible: layerData.visible
+        }
+      
+        // Set up the layer's data array.  We'll try to optimize
+        // by keeping the index data type as small as possible
+        if(tiles.length < Math.pow(2,8))
+          layer.data = new Uint8Array(layerData.data);
+        else if (tiles.length < Math.Pow(2, 16))
+          layer.data = new Uint16Array(layerData.data);
+        else 
+          layer.data = new Uint32Array(layerData.data);
+      
+        // save the tile layer
+        layers.push(layer);
+      }
+    });
+  }
+
+  var render = function(screenCtx) {
+    // Render tilemap layers - note this assumes
+    // layers are sorted back-to-front so foreground
+    // layers obscure background ones.
+    // see http://en.wikipedia.org/wiki/Painter%27s_algorithm
+    layers.forEach(function(layer){
+      
+      // Only draw layers that are currently visible
+      if(layer.visible) { 
+        for(y = 0; y < layer.height; y++) {
+          for(x = 0; x < layer.width; x++) {
+            var tileId = layer.data[x + layer.width * y];
+            
+            // tiles with an id of 0 don't exist
+            if(tileId != 0) {
+              var tile = tiles[tileId - 1];
+              if(tile.image) { // Make sure the image has loaded
+                screenCtx.drawImage(
+                  tile.image,     // The image to draw 
+                  tile.sx, tile.sy, tileWidth, tileHeight, // The portion of image to draw
+                  x*tileWidth, y*tileHeight, tileWidth, tileHeight // Where to draw the image on-screen
+                );
+              }
+            }
+            
+          }
+        }
+      }
+      
+    });
+  }
+  
+  var tileAt = function(x, y, layer) {
+    // sanity check
+    if(layer < 0 || x < 0 || y < 0 || layer >= layers.length || x > mapWidth || y > mapHeight) 
+      return undefined;  
+    return tiles[layers[layer].data[x + y*mapWidth] - 1];
+  }
+  
+  // Expose the module's public API
+  return {
+    load: load,
+    render: render,
+    tileAt: tileAt
+  }
+  
+  
+})();
+},{}],15:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],16:[function(require,module,exports){
 "use strict";
 
 /**
@@ -792,6 +1840,153 @@ function magnitude(a) {
 function normalize(a) {
   var mag = magnitude(a);
   return {x: a.x / mag, y: a.y / mag};
+}
+
+},{}],17:[function(require,module,exports){
+module.exports={ "height":10,
+ "layers":[
+        {
+         "data":[ 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,3, 0, 0, 0, 0,0, 0, 0, 3, 0,0, 0, 3, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 3, 0, 0,0, 0, 0, 0, 0,3, 0, 0, 0, 0,0, 0, 0, 3, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 3, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0,0, 0,0, 0, 0, 0, 0, 0, 0, 0, , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0],
+         "height":10,
+         "name":"Tile Layer 1",
+         "opacity":1,
+         "type":"tilelayer",
+         "visible":true,
+         "width":80,
+         "x":0,
+         "y":0
+        }],
+ "orientation":"orthogonal",
+ "properties":
+    {
+
+    },
+ "renderorder":"right-down",
+ "tileheight":84,
+ "tilesets":[
+        {
+         "firstgid":1,
+         "image":".\/assets\/shapesy2.png",
+         "imageheight":1876,
+         "imagewidth":240,
+         "margin":0,
+         "name":"shapesy",
+         "properties":
+            {
+
+            },
+         "spacing":0,
+         "tileheight":84,
+         "tileproperties":
+            {
+             "2":
+                {
+                 "solid":"true"
+                }
+            },
+         "tilewidth":72
+        }],
+ "tilewidth":72,
+ "version":1,
+ "width":40
+}
+
+},{}],18:[function(require,module,exports){
+module.exports={ "height":10,
+ "layers":[
+        {
+         "data":[0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0,0, 0, , 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,1, 0, 0, 1, 0,0, 0, 0, 0, 1,0, 0, 1, 0, 0,0, 0, 0, 0, 1,0, 0, 0, 0, 0,0, 0, 1, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, , 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, ,0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0,0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0,0, 0, 0, 0, 0],
+         "height":10,
+         "name":"Tile Layer 1",
+         "opacity":1,
+         "type":"tilelayer",
+         "visible":true,
+         "width":80,
+         "x":0,
+         "y":0
+        }],
+ "orientation":"orthogonal",
+ "properties":
+    {
+
+    },
+ "renderorder":"right-down",
+ "tileheight":84,
+ "tilesets":[
+        {
+         "firstgid":1,
+         "image":".\/assets\/shapesy2.png",
+         "imageheight":1876,
+         "imagewidth":240,
+         "margin":0,
+         "name":"shapesy",
+         "properties":
+            {
+
+            },
+         "spacing":0,
+         "tileheight":84,
+         "tileproperties":
+            {
+             "2":
+                {
+                 "solid":"true"
+                }
+            },
+         "tilewidth":72
+        }],
+ "tilewidth":72,
+ "version":1,
+ "width":40
+}
+
+},{}],19:[function(require,module,exports){
+module.exports={ "height":10,
+ "layers":[
+        {
+         "data":[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 22, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 22, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 22, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 22, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,2, 2,2, 2,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+         "height":10,
+         "name":"Tile Layer 1",
+         "opacity":1,
+         "type":"tilelayer",
+         "visible":true,
+         "width":80,
+         "x":0,
+         "y":0
+        }],
+ "orientation":"orthogonal",
+ "properties":
+    {
+
+    },
+ "renderorder":"right-down",
+ "tileheight":84,
+ "tilesets":[
+        {
+         "firstgid":1,
+         "image":".\/assets\/shapesy2.png",
+         "imageheight":1876,
+         "imagewidth":240,
+         "margin":0,
+         "name":"shapesy",
+         "properties":
+            {
+
+            },
+         "spacing":0,
+         "tileheight":84,
+         "tileproperties":
+            {
+             "2":
+                {
+                 "solid":"true"
+                }
+            },
+         "tilewidth":72
+        }],
+ "tilewidth":72,
+ "version":1,
+ "width":40
 }
 
 },{}]},{},[1]);
