@@ -493,7 +493,7 @@ function BulletPool(maxSize) {
   this.end = 0;
   this.max = maxSize;
   this.radius = 4;
-  this.color="black";
+  this.color="white";
 }
 
 /**
